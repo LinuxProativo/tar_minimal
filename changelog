@@ -1,0 +1,9 @@
+Tue Feb 10 22:00:18 -03 2026:
+    - Core Functionality: Initial support for TAR archiving and extraction
+    - Directory Support: Added `append_dir_all` to recursively package entire directories
+    - File Support: Support for adding individual files to archives
+    - Compression: Fully tested and guaranteed integration with Zstd
+    - Unix Metadata: Basic preservation of Unix file permissions (modes) and timestamps
+    - Focused on Linux/Unix environments
+    - Protection against Path Traversal attacks during extraction
+    - Minimal dependency tree for faster builds
