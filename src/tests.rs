@@ -108,8 +108,8 @@ fn test_recursive_directory_compression() -> std::io::Result<()> {
         decoder.unpack(extraction_dir.to_str().unwrap())?;
     }
 
-    assert!(extraction_dir.join("bundle/file1.txt").exists());
-    assert!(extraction_dir.join("bundle/subdir/file2.txt").exists());
+    assert!(extraction_dir.join("source_folder/file1.txt").exists());
+    assert!(extraction_dir.join("source_folder/subdir/file2.txt").exists());
 
     // fs::remove_dir_all(&temp_base)?;
     Ok(())
