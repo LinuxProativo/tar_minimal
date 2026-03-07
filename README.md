@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.png" width="280" alt="">
+  <img src="logo.png" width="300" alt="">
 </p>
 
 <h1 align="center">tar_minimal - Minimal Rust library for TAR archiving</h1>
