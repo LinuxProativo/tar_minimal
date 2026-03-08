@@ -9,10 +9,10 @@ mod decoder;
 mod header;
 
 /// A builder for creating TAR archives, compatible with any `Write` implementation.
-pub use crate::builder::Builder;
+pub use builder::Builder;
 
 /// A decoder for extracting TAR archives, compatible with any `Read` implementation.
-pub use crate::decoder::Decoder;
+pub use decoder::Decoder;
 
 #[cfg(test)]
 mod tests;

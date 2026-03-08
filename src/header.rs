@@ -56,9 +56,8 @@ impl TarHeader {
         let ptr = self as *const _ as *const u8;
         let mut sum: u32 = 0;
         for i in 0..512 {
-            // Offset 148 to 156 corresponds to the checksum field.
             if i >= 148 && i < 156 {
-                sum += 32; // ASCII for space
+                sum += 32;
             } else {
                 sum += unsafe { *ptr.add(i) } as u32;
             }
@@ -76,7 +75,6 @@ impl TarHeader {
     /// * `val`: The `u64` value to be converted to octal.
     pub fn set_octal(dst: &mut [u8], val: u64) {
         let len = dst.len();
-        // The last byte is often a null or space, so we format for len - 1.
         let s = format!("{:0>width$o}", val, width = len - 1);
         for (i, b) in s.as_bytes().iter().enumerate().take(len - 1) {
             dst[i] = *b;

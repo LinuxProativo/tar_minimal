@@ -5,7 +5,6 @@
 //! reconstructs files on the filesystem while preserving Unix permissions.
 
 use crate::header::TarHeader;
-
 use std::fs::{self, OpenOptions};
 use std::io::{self, Read};
 use std::os::unix::fs::PermissionsExt;

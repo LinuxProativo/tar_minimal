@@ -75,7 +75,7 @@ fn test_full_compression_cycle_in_temp() -> std::io::Result<()> {
         "Permissions mismatch!"
     );
 
-    // fs::remove_dir_all(&temp_base)?;
+    fs::remove_dir_all(&temp_base)?;
     Ok(())
 }
 
@@ -111,6 +111,6 @@ fn test_recursive_directory_compression() -> std::io::Result<()> {
     assert!(extraction_dir.join("source_folder/file1.txt").exists());
     assert!(extraction_dir.join("source_folder/subdir/file2.txt").exists());
 
-    // fs::remove_dir_all(&temp_base)?;
+    fs::remove_dir_all(&temp_base)?;
     Ok(())
 }
