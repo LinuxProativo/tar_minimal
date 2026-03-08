@@ -4,9 +4,8 @@
 //! a TAR archive stream. It handles the conversion of filesystem metadata to
 //! USTAR headers and manages byte-alignment (padding) required by the format.
 
-use std::fs;
 use crate::header::TarHeader;
-
+use std::fs;
 use std::fs::File;
 use std::io::{self, Write};
 use std::os::unix::fs::MetadataExt;
@@ -29,7 +28,10 @@ impl<W: Write> Builder<W> {
     /// # Parameters
     /// * `writer`: An object implementing the `Write` trait (e.g., `File`, `TcpStream`, or `zstd::Encoder`).
     pub fn new(writer: W) -> Self {
-        Self { writer, finished: false }
+        Self {
+            writer,
+            finished: false,
+        }
     }
 
     /// Appends a file from the filesystem to the archive.
@@ -48,7 +50,6 @@ impl<W: Write> Builder<W> {
         let metadata = file.metadata()?;
         let mut header = TarHeader::new();
 
-        // Sanitize a path: remove leading slash to prevent absolute path issues during extraction
         let clean_path = path.strip_prefix('/').unwrap_or(path);
 
         // Security: Ensure path name fits in the header.
@@ -78,13 +79,30 @@ impl<W: Write> Builder<W> {
         let remainder = n % 512;
         if remainder > 0 {
             let padding = [0u8; 512];
-            self.writer.write_all(&padding[..(512 - remainder as usize)])?;
+            self.writer
+                .write_all(&padding[..(512 - remainder as usize)])?;
         }
         Ok(())
     }
 
+    /// Recursively appends the contents of a directory to the archive.
     ///
-    pub fn append_dir_all<P: AsRef<Path>>(&mut self, prefix_in_tar: &str, path: P) -> io::Result<()> {
+    /// This method traverses the filesystem starting at the given path and adds
+    /// every file and subdirectory found to the TAR stream, preserving the
+    /// internal directory structure under a specified prefix.
+    ///
+    /// # Parameters
+    /// * `prefix_in_tar`: The base directory path to be used inside the archive.
+    /// * `path`: The source directory on the host filesystem to be archived.
+    ///
+    /// # Errors
+    /// Returns an `io::Error` if the directory cannot be read, or if any
+    /// underlying file operation or write process fails.
+    pub fn append_dir_all<P: AsRef<Path>>(
+        &mut self,
+        prefix_in_tar: &str,
+        path: P,
+    ) -> io::Result<()> {
         let path = path.as_ref();
 
         for entry in fs::read_dir(path)? {
@@ -102,13 +120,28 @@ impl<W: Write> Builder<W> {
         Ok(())
     }
 
+    /// Appends a file to the archive using a custom name for the internal entry.
     ///
-    pub fn append_path_as<P: AsRef<Path>>(&mut self, source: P, name_in_tar: &str) -> io::Result<()> {
+    /// Similar to `append_path`, but allows explicitly defining the path/name
+    /// that will represent the file within the TAR archive, regardless of its
+    /// actual location on the host disk.
+    ///
+    /// # Parameters
+    /// * `source`: The physical path of the file to be read.
+    /// * `name_in_tar`: The virtual path/name to be assigned within the archive.
+    ///
+    /// # Errors
+    /// Returns an `io::Error` if the source file is inaccessible or if the
+    /// header/content cannot be written to the stream.
+    pub fn append_path_as<P: AsRef<Path>>(
+        &mut self,
+        source: P,
+        name_in_tar: &str,
+    ) -> io::Result<()> {
         let mut file = File::open(source)?;
         let metadata = file.metadata()?;
         let mut header = TarHeader::new();
 
-        // Sanitize a path: remove leading slash to prevent absolute path issues during extraction
         let clean_name = name_in_tar.trim_start_matches('/');
 
         // Security: Ensure path name fits in the header.
@@ -138,12 +171,23 @@ impl<W: Write> Builder<W> {
         let remainder = n % 512;
         if remainder > 0 {
             let padding = [0u8; 512];
-            self.writer.write_all(&padding[..(512 - remainder as usize)])?;
+            self.writer
+                .write_all(&padding[..(512 - remainder as usize)])?;
         }
         Ok(())
     }
 
+    /// Finalizes the TAR archive by writing the required termination blocks.
     ///
+    /// According to the POSIX/USTAR standard, an archive must end with two
+    /// consecutive 512-byte blocks of zero bytes. This method ensures these
+    /// blocks are written and flushes the underlying writer.
+    ///
+    /// # Returns
+    /// `Ok(())` if the archive was successfully finalized or was already finished.
+    ///
+    /// # Errors
+    /// Returns an `io::Error` if writing the termination blocks or flushing fails.
     pub fn finish(&mut self) -> io::Result<()> {
         if !self.finished {
             self.writer.write_all(&[0u8; 1024])?;
