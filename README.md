@@ -2,9 +2,17 @@
   <img src="logo.png" width="300" alt="">
 </p>
 
-<h1 align="center">tar_minimal - Minimal Rust library for TAR archiving</h1>
+<h1 align="center">Tar Minimal - Minimal Rust library for TAR archiving</h1>
+<h3 align="center">Tar Minimal is a minimalist, high-performance Rust library for TAR archiving with Zstd compression, specifically designed for Unix-like environments.</h3>
 
-### `tar_minimal` is a minimalist, high-performance Rust library for TAR archiving with Zstd compression, specifically designed for Unix-like environments.
+<p align="center">
+    <img src="https://img.shields.io/badge/Platform-POSIX-FCC624?&logo=linux&style=flat-square"/>
+    <img src="https://img.shields.io/github/actions/workflow/status/LinuxProativo/tar_minimal/rust.yml?label=Test&style=flat-square&logo=github"/>
+    <img src="https://img.shields.io/badge/RustC-1.85+-orange?style=flat-square&logo=rust"/>
+    <img src="https://img.shields.io/github/languages/code-size/LinuxProativo/tar_minimal?style=flat-square&logo=rust&label=Code%20Size"/>
+</p>
+
+## 🔍 Overview
 
 It's a focused, "no-frills" alternative to robust archiving crates like
 `tar-rs`. In a world of feature-heavy libraries, this crate carves out a niche for
@@ -15,7 +23,7 @@ It was engineered for automated deployment systems, log rotators, and payload
 delivery mechanisms where build times, binary size, and execution speed are more
 important than supporting legacy formats or cross-platform edge cases.
 
-## 🛠 Key Features
+## ✨ Key Features
 
 * **Unix-Native Core**  
   Leverages Unix-specific traits for handling file permissions (mode) and metadata,
@@ -45,9 +53,10 @@ explicitly chose not to implement certain features:
   While it might compile, file permissions and path handling are not guaranteed or
   tested on Windows.
 
-* **Strict Format Support**  
-  Only integration with Zstd is currently guaranteed and tested. Other formats
-  such as Gzip, Bzip2, or Xz have not yet been validated.
+* **Verified Multi-Format Streaming**  
+  While primarily designed for Zstd, the library is fully compatible and verified
+  with any Write/Read stream, including Gzip, Xz, Bzip2, Lz4, and Brotli via
+  the standard USTAR format.
 
 * **Basic Metadata Only**  
   We handle standard permissions (UID/GID/Mode/MTime), but we do not support
@@ -58,11 +67,11 @@ explicitly chose not to implement certain features:
   an existing `.tar.zst` bundle.
 
 
-## 📦 Usage
+## 📖 Usage Example
 
 ```toml
 [dependencies]
-tar_minimal = "0.1.0"
+tar_minimal = "1.0"
 zstd = "0.13"
 ```
 
@@ -140,11 +149,6 @@ behavior without impacting the default experience.
       Optional compatibility layers for non-Unix systems (such as Windows),
       implemented in isolation to avoid polluting the Unix-focused core.
 
-    * **Additional Compression Backends**  
-      Support for alternative algorithms such as Gzip, Lz4, Xz, or others
-      may be added as optional features or core integrations, depending
-      on future architectural adjustments.
-
     * **Extended Metadata Support**  
       Optional handling of xattrs, ACLs, and PAX headers for users who need richer
       filesystem fidelity.
@@ -163,7 +167,7 @@ behavior without impacting the default experience.
     * **Maintain core security guarantees**  
       Optional functionality must not weaken extraction safety or validation logic.
 
-### 📦 Design Philosophy (Feature-Based Expansion)
+### 🪶 Design Philosophy (Feature-Based Expansion)
 
 To preserve the minimalist nature of `tar_minimal`:
 
@@ -192,7 +196,14 @@ Functionality beyond the minimal archive pipeline may be considered if:
 * **It follows Rust feature best practices**  
   Predictable flags, no implicit enables, and clear documentation.
 
+## 📜 MIT License
 
-## 📄 License
+This repository has scripts that were created to be free software.  
+Therefore, they can be distributed and/or modified within the terms of the ***MIT License***.
 
-This project is licensed under the MIT License. See the `LICENSE` file for details.
+> ### See the [LICENSE](LICENSE) file for details.
+
+## 📬 Contact & Support
+
+* 📧 **Email:** [m10ferrari1200@gmail.com](mailto:m10ferrari1200@gmail.com)
+* 📧 **Email:** [contatolinuxdicaspro@gmail.com](mailto:contatolinuxdicaspro@gmail.com)
