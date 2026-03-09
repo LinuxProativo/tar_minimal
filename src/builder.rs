@@ -8,6 +8,7 @@ use crate::header::TarHeader;
 use std::fs;
 use std::fs::File;
 use std::io::{self, Write};
+use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 
@@ -45,44 +46,17 @@ impl<W: Write> Builder<W> {
     /// # Errors
     /// Returns an `io::Error` if the file cannot be opened, metadata cannot be read,
     /// or if the writing process to the underlying stream fails.
-    pub fn append_path(&mut self, path: &str) -> io::Result<()> {
-        let mut file = File::open(path)?;
-        let metadata = file.metadata()?;
-        let mut header = TarHeader::new();
+    pub fn append_path<P: AsRef<Path>>(&mut self, path: P) -> io::Result<()> {
+        let path = path.as_ref();
+        let path_bytes = path.as_os_str().as_bytes();
 
-        let clean_path = path.strip_prefix('/').unwrap_or(path);
+        let clean_bytes = if !path_bytes.is_empty() && path_bytes[0] == b'/' {
+            &path_bytes[1..]
+        } else {
+            path_bytes
+        };
 
-        // Security: Ensure path name fits in the header.
-        // USTAR uses a 100-byte name field and a 155-byte prefix.
-        // For simplicity, this minimal version truncates names > 100 bytes.
-        let bytes_path = clean_path.as_bytes();
-        let name_len = bytes_path.len().min(100);
-        header.name[..name_len].copy_from_slice(&bytes_path[..name_len]);
-
-        TarHeader::set_octal(&mut header.mode, metadata.mode() as u64);
-        TarHeader::set_octal(&mut header.uid, metadata.uid() as u64);
-        TarHeader::set_octal(&mut header.gid, metadata.gid() as u64);
-        TarHeader::set_octal(&mut header.size, metadata.len());
-        TarHeader::set_octal(&mut header.mtime, metadata.mtime() as u64);
-        header.typeflag = b'0';
-
-        let cksum = header.calculate_checksum();
-        TarHeader::set_octal(&mut header.checksum, cksum as u64);
-
-        // Security: Safe memory access through slice conversion
-        let header_ptr = &header as *const _ as *const u8;
-        let header_slice = unsafe { std::slice::from_raw_parts(header_ptr, 512) };
-        self.writer.write_all(header_slice)?;
-
-        let n = io::copy(&mut file, &mut self.writer)?;
-
-        let remainder = n % 512;
-        if remainder > 0 {
-            let padding = [0u8; 512];
-            self.writer
-                .write_all(&padding[..(512 - remainder as usize)])?;
-        }
-        Ok(())
+        self.append_path_as_bytes(path, clean_bytes)
     }
 
     /// Recursively appends the contents of a directory to the archive.
@@ -104,17 +78,25 @@ impl<W: Write> Builder<W> {
         path: P,
     ) -> io::Result<()> {
         let path = path.as_ref();
+        let prefix_bytes = prefix_in_tar.as_bytes();
 
         for entry in fs::read_dir(path)? {
             let entry = entry?;
             let entry_path = entry.path();
             let file_name = entry.file_name();
-            let internal_name = format!("{}/{}", prefix_in_tar, file_name.to_string_lossy());
+            let file_name_bytes = file_name.as_bytes();
+
+            let mut internal_name =
+                Vec::with_capacity(prefix_bytes.len() + 1 + file_name_bytes.len());
+            internal_name.extend_from_slice(prefix_bytes);
+            internal_name.push(b'/');
+            internal_name.extend_from_slice(file_name_bytes);
 
             if entry_path.is_dir() {
-                self.append_dir_all(&internal_name, &entry_path)?;
+                let next_prefix = String::from_utf8_lossy(&internal_name);
+                self.append_dir_all(&next_prefix, &entry_path)?;
             } else {
-                self.append_path_as(&entry_path, &internal_name)?;
+                self.append_path_as_bytes(&entry_path, &internal_name)?;
             }
         }
         Ok(())
@@ -138,18 +120,49 @@ impl<W: Write> Builder<W> {
         source: P,
         name_in_tar: &str,
     ) -> io::Result<()> {
+        self.append_path_as_bytes(source.as_ref(), name_in_tar.as_bytes())
+    }
+
+    /// Core internal function that handles the actual TAR encoding using byte slices.
+    ///
+    /// This method is the engine of the builder. It performs the low-level operations
+    /// required to translate a file's filesystem presence into a TAR-compliant stream,
+    /// working directly with bytes to ensure compatibility with non-UTF-8 paths.
+    ///
+    /// # Process Flow:
+    /// 1. **Metadata Retrieval**: Opens the source file and extracts Unix-specific
+    ///    metadata (UID, GID, Mode, Size, Mtime).
+    /// 2. **Header Preparation**: Initializes a `TarHeader` and populates it using
+    ///    octal encoding for numeric values.
+    /// 3. **Path Sanitization**: Ensures the path inside the archive does not start
+    ///    with a `/` to maintain portability.
+    /// 4. **Checksum Calculation**: Computes the header checksum as required by
+    ///    the POSIX USTAR standard.
+    /// 5. **Data Streaming**: Writes the 512-byte header, followed by the file's
+    ///    raw content, and finally adds null-byte padding to align to the 512-byte
+    ///    block boundary.
+    ///
+    /// # Parameters
+    /// * `source`: The reference to the physical `Path` on the host disk.
+    /// * `name_in_tar`: A byte slice representing the name/path of the file
+    ///   within the archive.
+    ///
+    /// # Errors
+    /// Returns an `io::Error` if the file cannot be read, if the writer fails,
+    /// or if the filesystem metadata is inaccessible.
+    fn append_path_as_bytes(&mut self, source: &Path, name_in_tar: &[u8]) -> io::Result<()> {
         let mut file = File::open(source)?;
         let metadata = file.metadata()?;
         let mut header = TarHeader::new();
 
-        let clean_name = name_in_tar.trim_start_matches('/');
+        let clean_name = if !name_in_tar.is_empty() && name_in_tar[0] == b'/' {
+            &name_in_tar[1..]
+        } else {
+            name_in_tar
+        };
 
-        // Security: Ensure path name fits in the header.
-        // USTAR uses a 100-byte name field and a 155-byte prefix.
-        // For simplicity, this minimal version truncates names > 100 bytes.
-        let bytes_path = clean_name.as_bytes();
-        let name_len = bytes_path.len().min(100);
-        header.name[..name_len].copy_from_slice(&bytes_path[..name_len]);
+        let name_len = clean_name.len().min(100);
+        header.name[..name_len].copy_from_slice(&clean_name[..name_len]);
 
         TarHeader::set_octal(&mut header.mode, metadata.mode() as u64);
         TarHeader::set_octal(&mut header.uid, metadata.uid() as u64);
@@ -161,13 +174,11 @@ impl<W: Write> Builder<W> {
         let cksum = header.calculate_checksum();
         TarHeader::set_octal(&mut header.checksum, cksum as u64);
 
-        // Security: Safe memory access through slice conversion
         let header_ptr = &header as *const _ as *const u8;
         let header_slice = unsafe { std::slice::from_raw_parts(header_ptr, 512) };
         self.writer.write_all(header_slice)?;
 
         let n = io::copy(&mut file, &mut self.writer)?;
-
         let remainder = n % 512;
         if remainder > 0 {
             let padding = [0u8; 512];

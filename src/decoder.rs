@@ -5,8 +5,10 @@
 //! reconstructs files on the filesystem while preserving Unix permissions.
 
 use crate::header::TarHeader;
+use std::ffi::OsStr;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Read};
+use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
@@ -42,39 +44,33 @@ impl<R: Read> Decoder<R> {
     /// * A header is malformed or contains invalid UTF-8.
     /// * A path traversal attempt is detected.
     /// * File or directory creation fails on the host system.
-    pub fn unpack(&mut self, dst: &str) -> io::Result<()> {
-        let dst_path = Path::new(dst);
+    pub fn unpack<P: AsRef<Path>>(&mut self, dst: P) -> io::Result<()> {
+        let dst_path = dst.as_ref();
         if !dst_path.exists() {
             fs::create_dir_all(dst_path)?;
         }
 
         loop {
             let mut header_buf = [0u8; 512];
-            if let Err(e) = self.reader.read_exact(&mut header_buf) {
-                if e.kind() == io::ErrorKind::UnexpectedEof {
-                    break;
-                }
-                return Err(e);
+            match self.reader.read_exact(&mut header_buf) {
+                Ok(_) => (),
+                Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => break,
+                Err(e) => return Err(e),
             }
 
             if header_buf.iter().all(|&b| b == 0) {
                 break;
             }
 
-            // Safety: Mapping the buffer to the TarHeader struct.
-            // The Header is validated by checksum and octal parsing below.
             let header = unsafe { &*(header_buf.as_ptr() as *const TarHeader) };
 
-            let name = std::str::from_utf8(&header.name)
-                .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Invalid UTF-8 in name"))?
-                .trim_matches(char::from(0));
+            let name_bytes = header.name.split(|&b| b == 0).next().unwrap_or(&[]);
+            let name_os_str = OsStr::from_bytes(name_bytes);
 
             let size = self.parse_octal(&header.size)?;
             let mode = self.parse_octal(&header.mode)? as u32;
 
-            // Security: Path Traversal Protection.
-            // Joins the destination with the entry name and ensures the result is still inside dst.
-            let target_path = dst_path.join(name);
+            let target_path = dst_path.join(name_os_str);
             if !target_path.starts_with(dst_path) {
                 return Err(io::Error::new(
                     io::ErrorKind::PermissionDenied,
@@ -116,14 +112,16 @@ impl<R: Read> Decoder<R> {
     /// # Returns
     /// The parsed `u64` value on success.
     fn parse_octal(&self, bytes: &[u8]) -> io::Result<u64> {
-        let s = std::str::from_utf8(bytes)
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Invalid octal string"))?
-            .trim_matches(|c: char| c == '\0' || c.is_whitespace());
+        let clean_bytes = bytes.split(|&b| b == 0 || b == b' ').next().unwrap_or(&[]);
 
-        if s.is_empty() {
+        if clean_bytes.is_empty() {
             return Ok(0);
         }
-        u64::from_str_radix(s, 8)
+
+        let s = std::str::from_utf8(clean_bytes)
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Invalid octal sequence"))?;
+
+        u64::from_str_radix(s.trim(), 8)
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Failed to parse octal"))
     }
 }
