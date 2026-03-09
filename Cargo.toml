@@ -1,15 +1,22 @@
 [package]
 name = "tar_minimal"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2024"
 description = "A minimalist, Unix-focused TAR library designed for high-performance streaming with Zstd."
 authors = ["mxnt <m10ferrari1200@gmail.com>"]
 license = "MIT"
 repository = "https://github.com/LinuxProativo/tar_minimal"
+homepage = "https://github.com/LinuxProativo/tar_minimal"
+documentation = "https://docs.rs/tar_minimal/"
 readme = "README.md"
 keywords = ["tar", "zstd", "unix", "minimal", "archive"]
 categories = ["compression", "filesystem"]
 
 [dev-dependencies]
 zstd = "0.13"
+flate2 = "1.0"
+xz2 = "0.1"
+bzip2 = "0.6"
+lz4_flex = "0.12"
+brotli = "8.0"
 tar_minimal = { path = "." }
