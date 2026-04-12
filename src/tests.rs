@@ -7,7 +7,7 @@
 //! These tests validate the full lifecycle of archive creation and extraction
 //! using Zstd compression, ensuring metadata and content integrity.
 
-use crate::{Builder, Decoder};
+use super::*;
 use brotli::Decompressor as BrotliDecoder;
 use bzip2::read::BzDecoder;
 use bzip2::write::BzEncoder;

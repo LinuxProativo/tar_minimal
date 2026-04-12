@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.png" width="300" alt="">
+  <img src="https://raw.githubusercontent.com/LinuxProativo/tar_minimal/refs/heads/master/logo.png" width="300"/>
 </p>
 
 <h1 align="center">Tar Minimal - Minimal Rust library for TAR archiving</h1>
@@ -198,7 +198,7 @@ Functionality beyond the minimal archive pipeline may be considered if:
 
 ## 📜 MIT License
 
-This repository has scripts that were created to be free software.  
+This repository has scripts created to be free software.  
 Therefore, they can be distributed and/or modified within the terms of the ***MIT License***.
 
 > ### See the [LICENSE](LICENSE) file for details.
