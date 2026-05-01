@@ -77,24 +77,33 @@ impl<W: Write> Builder<W> {
         prefix_in_tar: &str,
         path: P,
     ) -> io::Result<()> {
-        let path = path.as_ref();
-        let prefix_bytes = prefix_in_tar.as_bytes();
+        self.append_dir_all_bytes(prefix_in_tar.as_bytes(), path.as_ref())
+    }
 
+    /// Internal recursive implementation of `append_dir_all`, operating directly on byte slices
+    /// to avoid repeated UTF-8 conversions across recursion levels.
+    ///
+    /// # Parameters
+    /// * `prefix`: The accumulated archive path prefix as raw bytes.
+    /// * `path`: The current directory being traversed on the host filesystem.
+    ///
+    /// # Errors
+    /// Returns an `io::Error` if the directory cannot be read, or if any
+    /// underlying file operation or write process fails.
+    fn append_dir_all_bytes(&mut self, prefix: &[u8], path: &Path) -> io::Result<()> {
         for entry in fs::read_dir(path)? {
             let entry = entry?;
             let entry_path = entry.path();
             let file_name = entry.file_name();
             let file_name_bytes = file_name.as_bytes();
 
-            let mut internal_name =
-                Vec::with_capacity(prefix_bytes.len() + 1 + file_name_bytes.len());
-            internal_name.extend_from_slice(prefix_bytes);
+            let mut internal_name = Vec::with_capacity(prefix.len() + 1 + file_name_bytes.len());
+            internal_name.extend_from_slice(prefix);
             internal_name.push(b'/');
             internal_name.extend_from_slice(file_name_bytes);
 
             if entry_path.is_dir() {
-                let next_prefix = String::from_utf8_lossy(&internal_name);
-                self.append_dir_all(&next_prefix, &entry_path)?;
+                self.append_dir_all_bytes(&internal_name, &entry_path)?;
             } else {
                 self.append_path_as_bytes(&entry_path, &internal_name)?;
             }
@@ -161,7 +170,14 @@ impl<W: Write> Builder<W> {
             name_in_tar
         };
 
-        let name_len = clean_name.len().min(100);
+        if clean_name.len() > 100 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Path too long for USTAR header (max 100 bytes)",
+            ));
+        }
+
+        let name_len = clean_name.len();
         header.name[..name_len].copy_from_slice(&clean_name[..name_len]);
 
         TarHeader::set_octal(&mut header.mode, metadata.mode() as u64);

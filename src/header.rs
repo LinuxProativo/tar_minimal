@@ -53,16 +53,10 @@ impl TarHeader {
     /// # Returns
     /// A `u32` representing the computed checksum value.
     pub fn calculate_checksum(&self) -> u32 {
-        let ptr = self as *const _ as *const u8;
-        let mut sum: u32 = 0;
-        for i in 0..512 {
-            if i >= 148 && i < 156 {
-                sum += 32;
-            } else {
-                sum += unsafe { *ptr.add(i) } as u32;
-            }
-        }
-        sum
+        let bytes = unsafe { std::slice::from_raw_parts(self as *const _ as *const u8, 512) };
+        bytes.iter().enumerate().fold(0u32, |sum, (i, &b)| {
+            sum + if i >= 148 && i < 156 { 32 } else { b as u32 }
+        })
     }
 
     /// Encodes a numeric value as an octal string into a byte slice.
@@ -76,8 +70,24 @@ impl TarHeader {
     pub fn set_octal(dst: &mut [u8], val: u64) {
         let len = dst.len();
         let s = format!("{:0>width$o}", val, width = len - 1);
-        for (i, b) in s.as_bytes().iter().enumerate().take(len - 1) {
-            dst[i] = *b;
+        dst[..len - 1].copy_from_slice(s.as_bytes());
+    }
+
+    /// Parses an octal string from a TAR header field.
+    ///
+    /// # Parameters
+    /// * `bytes`: The byte slice from the header containing the octal ASCII string.
+    ///
+    /// # Returns
+    /// The parsed `u64` value on success.
+    pub fn parse_octal(bytes: &[u8]) -> std::io::Result<u64> {
+        let clean = bytes.split(|&b| b == 0 || b == b' ').next().unwrap_or(&[]);
+        if clean.is_empty() {
+            return Ok(0);
         }
+        let s = std::str::from_utf8(clean)
+            .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid octal sequence"))?;
+        u64::from_str_radix(s.trim(), 8)
+            .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "Failed to parse octal"))
     }
 }

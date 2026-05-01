@@ -1,3 +1,10 @@
+Fri May  1 18:45:25 -03 2026:
+    - Migrated parse_octal from Decoder to TarHeader as a static method.
+    - Replaced manual pointer loop in calculate_checksum with a single slice::from_raw_parts + fold.
+    - Replaced index loop in set_octal with copy_from_slice.
+    - Extracted append_dir_all_bytes to carry &[u8] prefix through recursion, eliminating from_utf8_lossy.
+    - Added explicit InvalidInput error when path exceeds 100 bytes instead of silent truncation.
+    - Removed local parse_octal, now delegates to TarHeader::parse_octal.
 Mon Mar 09 11:43:12 -03 2026:
     - Represented name as a byte array for improved performance.
     - Unit tests for gzip, xz, bzip2, lz4 and brotli compression formats.

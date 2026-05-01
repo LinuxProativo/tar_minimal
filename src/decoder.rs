@@ -67,8 +67,8 @@ impl<R: Read> Decoder<R> {
             let name_bytes = header.name.split(|&b| b == 0).next().unwrap_or(&[]);
             let name_os_str = OsStr::from_bytes(name_bytes);
 
-            let size = self.parse_octal(&header.size)?;
-            let mode = self.parse_octal(&header.mode)? as u32;
+            let size = TarHeader::parse_octal(&header.size)?;
+            let mode = TarHeader::parse_octal(&header.mode)? as u32;
 
             let target_path = dst_path.join(name_os_str);
             if !target_path.starts_with(dst_path) {
@@ -102,26 +102,5 @@ impl<R: Read> Decoder<R> {
             }
         }
         Ok(())
-    }
-
-    /// Parses octal strings from the TAR header fields.
-    ///
-    /// # Parameters
-    /// * `bytes`: The byte slice from the header containing the octal ASCII string.
-    ///
-    /// # Returns
-    /// The parsed `u64` value on success.
-    fn parse_octal(&self, bytes: &[u8]) -> io::Result<u64> {
-        let clean_bytes = bytes.split(|&b| b == 0 || b == b' ').next().unwrap_or(&[]);
-
-        if clean_bytes.is_empty() {
-            return Ok(0);
-        }
-
-        let s = std::str::from_utf8(clean_bytes)
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Invalid octal sequence"))?;
-
-        u64::from_str_radix(s.trim(), 8)
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Failed to parse octal"))
     }
 }
